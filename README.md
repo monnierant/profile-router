@@ -26,11 +26,11 @@ n'est pas transplanté dans la nouvelle conversation. Le geste est « je choisis
 
 ## Installation
 
-Dans Hermes Desktop : **Capabilities → Plugins → Install from Git**, puis saisir
-`monnierant/profile-router`. Ou ouvrir ce lien :
+Dans Hermes Desktop : **Capabilities → Plugins → Install from Git**, puis coller
+l'URL du dépôt :
 
 ```
-hermes://plugin/install?repo=monnierant/profile-router
+https://github.com/monnierant/profile-router
 ```
 
 Le plugin est copié dans `desktop-plugins/profile-router/` et s'active tout seul
