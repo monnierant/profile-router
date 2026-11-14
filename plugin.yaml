@@ -1,0 +1,11 @@
+name: profile-router
+version: 0.1.0
+manifest_version: 1
+kind: standalone
+description: >
+  Desktop-only : pastille dans le composer qui ouvre une nouvelle
+  conversation sur le profil choisi.
+author: monnierant
+license: MIT
+homepage: https://github.com/monnierant/profile-router
+tags: [desktop, profiles, composer]

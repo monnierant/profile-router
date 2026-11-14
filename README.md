@@ -24,17 +24,35 @@ une session ne change jamais de profil. Le plugin ne modifie donc pas la convers
 Le SDK n'expose le texte du composer qu'à l'envoi (`composer.middleware`) : un message déjà tapé
 n'est pas transplanté dans la nouvelle conversation. Le geste est « je choisis, puis j'écris ».
 
-## Installation (manuelle)
+## Installation
 
-Copier le dossier dans le répertoire des plugins desktop de Hermes :
+Dans Hermes Desktop : **Capabilities → Plugins → Install from Git**, puis saisir
+`monnierant/profile-router`. Ou ouvrir ce lien :
 
-- Windows : `%LOCALAPPDATA%\hermes\desktop-plugins\profile-router\`
+```
+hermes://plugin/install?repo=monnierant/profile-router
+```
 
-Le fichier `plugin.js` est chargé à chaud, sans reconstruire l'application.
+Le plugin est copié dans `desktop-plugins/profile-router/` et s'active tout seul
+(`defaultEnabled: true`). Il se désactive dans Capabilities → Plugins.
+
+## Développement
+
+```
+git clone https://github.com/monnierant/profile-router.git
+hermes plugins validate profile-router
+```
+
+- `plugin.yaml` : manifeste (nom, version, description).
+- `desktop/plugin.js` : le plugin lui-même, un module ES qui n'importe que
+  `@hermes/plugin-sdk` et `react`.
+
+Pour tester une modification, copier `desktop/plugin.js` dans
+`desktop-plugins/profile-router/plugin.js` : Hermes le recharge à chaud.
 
 ## À faire / contributions bienvenues
 
-- [ ] Empaquetage installable via `hermes plugins install` (manifeste `plugin.yaml`).
+- [ ] Proposer le plugin au catalogue Hermes (`hermes plugins search`).
 - [ ] Transplanter le brouillon en cours dans la nouvelle conversation si le SDK l'expose un jour.
 - [ ] Traduction anglaise de l'interface.
 - [ ] Captures d'écran dans ce README.
