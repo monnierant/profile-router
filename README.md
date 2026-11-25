@@ -13,6 +13,10 @@ conversation.
 - `Entrée` dans le champ de filtre valide la première cible affichée.
 - Le survol d'une ligne préchauffe l'agent du profil (`host.warmAgent`) quand l'hôte le permet.
 - Avec moins de deux profils disponibles, la pastille ne s'affiche pas.
+- **Plusieurs sources** (cet appareil + une gateway distante, un VPS…) : chaque profil porte
+  une étiquette avec le nom de sa connexion (`local`, `hermes.exemple.fr`…), pour distinguer
+  deux profils de même nom. Le filtre cherche aussi dans ce nom de source, et la coche ne
+  marque que le profil de la connexion active. Avec une seule source, aucune étiquette.
 
 ### Pourquoi une nouvelle conversation ?
 

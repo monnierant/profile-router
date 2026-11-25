@@ -45,6 +45,34 @@ function routeKey(route) {
   return `${route.connectionId ?? ''}::${norm(route.profile)}`
 }
 
+/** Étiquette courte d'une source : libellé du registre, sinon l'id brut. */
+function sourceLabel(route, labels) {
+  const id = route.connectionId ?? ''
+  const label = labels.get(id)
+
+  if (label) return label
+  if (route.mode === 'local' || id === 'local') return 'local'
+
+  return id || 'local'
+}
+
+/** Libellés des connexions du registre, indexés par id. Vide si indisponible. */
+function useConnectionLabels() {
+  const query = useQuery({
+    queryKey: [PLUGIN_ID, 'connections'],
+    queryFn: async () => {
+      if (typeof host.connections !== 'function') return []
+
+      return host.connections()
+    },
+    staleTime: 5 * 60_000,
+    retry: 0
+  })
+  const rows = Array.isArray(query.data) ? query.data : []
+
+  return new Map(rows.map(row => [row.id, row.kind === 'local' ? 'local' : row.label || row.id]))
+}
+
 function dotStyle(name) {
   return { backgroundColor: profileColor(name) ?? 'var(--ui-text-tertiary)' }
 }
@@ -82,10 +110,32 @@ function useActiveConnectionRoutes() {
   })
 }
 
-function isCurrentRoute(route, current) {
+function matchesName(route, current) {
   const key = norm(current)
 
   return key !== '' && (norm(route.profile) === key || norm(route.targetProfile) === key)
+}
+
+/** Id de la connexion active ; null côté SDK signifie le chemin local. */
+function activeConnection(stateId) {
+  const fromHost = typeof host.activeConnectionId === 'function' ? host.activeConnectionId() : undefined
+
+  return (fromHost ?? stateId ?? 'local') || 'local'
+}
+
+/** Avec plusieurs sources, un même nom (« default ») existe des deux côtés :
+ *  la coche ne doit aller qu'à celui de la connexion active. Si aucun ne
+ *  correspond à la connexion (ids qui s'écrivent différemment), on retombe sur
+ *  la comparaison par nom seul plutôt que de ne rien cocher. */
+function currentRouteKey(routes, current, connectionId) {
+  const byName = routes.filter(route => matchesName(route, current))
+
+  if (byName.length === 0) return null
+  if (byName.length === 1) return routeKey(byName[0])
+
+  const onActive = byName.find(route => (route.connectionId ?? 'local') === connectionId)
+
+  return routeKey(onActive ?? byName[0])
 }
 
 function switchTo(route) {
@@ -113,8 +163,9 @@ function warm(route) {
   host.warmAgent(route.connectionId, route.profile)
 }
 
-function ProfileRow({ current, onPicked, route }) {
-  const label = route.profile || 'default'
+function ProfileRow({ current, onPicked, route, source }) {
+  const name = route.profile || 'default'
+  const label = source ? `${name} · ${source}` : name
 
   return jsxs(RowButton, {
     className: ROW_CLASS,
@@ -129,7 +180,13 @@ function ProfileRow({ current, onPicked, route }) {
       : `Nouvelle conversation sur ${label}`,
     children: [
       jsx('span', { className: 'size-2 shrink-0 rounded-full', style: dotStyle(route.profile) }),
-      jsx('span', { className: 'min-w-0 flex-1 truncate', children: label }),
+      jsx('span', { className: 'min-w-0 flex-1 truncate', children: name }),
+      source
+        ? jsx('span', {
+            className: 'max-w-24 shrink-0 truncate rounded bg-(--ui-bg-hover) px-1 text-[0.625rem] text-(--ui-text-tertiary)',
+            children: source
+          })
+        : null,
       current
         ? jsx(Codicon, { className: 'shrink-0 text-(--ui-text-tertiary)', name: 'check', size: '0.9em' })
         : null
@@ -143,15 +200,33 @@ function ProfilePill() {
   const routes = useActiveConnectionRoutes()
   const focused = useValue(host.state.focusedSessionProfile)
   const gatewayProfile = useValue(host.state.profile)
+  const stateConnectionId = useValue(host.state.connectionId)
+  const labels = useConnectionLabels()
   const current = (focused ?? '').trim() || (gatewayProfile ?? '').trim()
 
   // Moins de deux cibles : la pastille n'a rien à offrir, elle ne s'affiche pas.
   if (routes.length < 2) return null
 
-  const label = current || 'default'
+  // Plusieurs sources (cet appareil + un VPS…) : chaque profil porte le nom
+  // de sa source, sinon deux « default » sont indiscernables.
+  const multiSource = new Set(routes.map(route => route.connectionId ?? 'local')).size > 1
+  const sourceOf = route => (multiSource ? sourceLabel(route, labels) : null)
+  const connectionId = activeConnection(stateConnectionId)
+  const currentKey = currentRouteKey(routes, current, connectionId)
+  const currentRoute = routes.find(route => routeKey(route) === currentKey)
+  const isCurrentRoute = route => routeKey(route) === currentKey
+
+  const name = current || 'default'
+  const currentSource = currentRoute ? sourceOf(currentRoute) : null
+  const label = currentSource ? `${name} · ${currentSource}` : name
   const needle = norm(query)
   const shown = needle
-    ? routes.filter(route => norm(route.profile).includes(needle) || norm(route.targetProfile).includes(needle))
+    ? routes.filter(
+        route =>
+          norm(route.profile).includes(needle) ||
+          norm(route.targetProfile).includes(needle) ||
+          norm(sourceOf(route)).includes(needle)
+      )
     : routes
 
   const close = () => {
@@ -164,7 +239,7 @@ function ProfilePill() {
   const submitFirst = event => {
     if (event.key !== 'Enter') return
 
-    const target = shown.find(route => !isCurrentRoute(route, current))
+    const target = shown.find(route => !isCurrentRoute(route))
 
     if (!target) return
 
@@ -186,14 +261,17 @@ function ProfilePill() {
           type: 'button',
           children: [
             jsx('span', { className: 'size-2 shrink-0 rounded-full', style: dotStyle(current) }),
-            jsx('span', { className: 'truncate', children: label }),
+            jsx('span', { className: 'truncate', children: name }),
+            currentSource
+              ? jsx('span', { className: 'shrink-0 truncate text-[0.625rem] opacity-60', children: currentSource })
+              : null,
             jsx(Codicon, { className: 'shrink-0 opacity-50', name: 'chevron-down', size: '0.75em' })
           ]
         })
       }),
       jsx(PopoverContent, {
         align: 'end',
-        className: 'flex w-56 flex-col p-1',
+        className: 'flex w-64 flex-col p-1',
         collisionPadding: 12,
         side: 'top',
         // Radix publie la place réellement disponible entre la pastille et le
@@ -230,9 +308,10 @@ function ProfilePill() {
                     })
                   : shown.map(route =>
                       jsx(ProfileRow, {
-                        current: isCurrentRoute(route, current),
+                        current: isCurrentRoute(route),
                         onPicked: close,
-                        route
+                        route,
+                        source: sourceOf(route)
                       }, routeKey(route))
                     )
             })
